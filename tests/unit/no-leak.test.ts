@@ -3,6 +3,9 @@ import { defaultConfig } from '../../src/core/config.js';
 import { scan } from '../../src/core/scanner.js';
 import type { ScanResult } from '../../src/core/types.js';
 import { renderJson } from '../../src/reporters/json.js';
+import { renderPrComment } from '../../src/reporters/pr-comment.js';
+import { renderSarif } from '../../src/reporters/sarif.js';
+import { renderSummary } from '../../src/reporters/summary.js';
 import { renderTerminal } from '../../src/reporters/terminal.js';
 import { materialize, type Materialized } from '../helpers/fixtures.js';
 
@@ -24,13 +27,16 @@ describe('secret values never reach any output', () => {
     json: renderJson(result),
     terminal: renderTerminal(result, { color: false }),
     terminalColor: renderTerminal(result, { color: true }),
+    sarif: renderSarif(result),
+    summary: renderSummary(result),
+    prComment: renderPrComment({ findings: result.findings, otherCount: 0 }),
   });
 
   it('finds secrets in the first place', () => {
     expect(result.findings.length).toBeGreaterThan(15);
   });
 
-  it.each(['json', 'terminal', 'terminalColor'] as const)(
+  it.each(['json', 'terminal', 'terminalColor', 'sarif', 'summary', 'prComment'] as const)(
     '%s output contains no secret',
     (name) => {
       const text = outputs()[name];

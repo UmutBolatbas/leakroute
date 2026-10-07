@@ -55,6 +55,13 @@ describe('cli', () => {
     expect(report.summary.high).toBeGreaterThan(0);
   });
 
+  it('prints SARIF', async () => {
+    const { stdout } = await cli('scan', vulnerable.dir, '--format', 'sarif');
+    const sarif = JSON.parse(stdout) as { version: string; runs: { results: unknown[] }[] };
+    expect(sarif.version).toBe('2.1.0');
+    expect(sarif.runs[0]?.results.length).toBeGreaterThan(0);
+  });
+
   it('--no-secrets disables secret detection', async () => {
     const { code, stdout } = await cli('scan', vulnerable.dir, '--no-secrets');
     expect(code).toBe(EXIT_OK);
