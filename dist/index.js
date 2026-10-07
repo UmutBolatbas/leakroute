@@ -275187,16 +275187,16 @@ const $ZodEnum = /*@__PURE__*/ $constructor("$ZodEnum", (inst, def) => {
         return payload;
     };
 });
-const $ZodLiteral = /*@__PURE__*/ (/* unused pure expression or super */ null && (core.$constructor("$ZodLiteral", (inst, def) => {
+const $ZodLiteral = /*@__PURE__*/ $constructor("$ZodLiteral", (inst, def) => {
     $ZodType.init(inst, def);
     const values = new Set(def.values);
     inst._zod.values = values;
-    util.defineLazyInternal(inst, "pattern", (zod) => {
+    defineLazyInternal(inst, "pattern", (zod) => {
         const vals = zod.def.values;
         // unmatchable fallback, RE2-safe: an empty alternation would compile to /^()$/, which matches ""
         return new RegExp(vals.length
             ? `^(${vals
-                .map((o) => typeof o === "string" ? util.escapeRegex(o) : o ? util.escapeRegex(o.toString()) : String(o))
+                .map((o) => typeof o === "string" ? escapeRegex(o) : o ? escapeRegex(o.toString()) : String(o))
                 .join("|")})$`
             : "^[^\\s\\S]$");
     });
@@ -275213,7 +275213,7 @@ const $ZodLiteral = /*@__PURE__*/ (/* unused pure expression or super */ null &&
         });
         return payload;
     };
-})));
+});
 const $ZodFile = /*@__PURE__*/ (/* unused pure expression or super */ null && (core.$constructor("$ZodFile", (inst, def) => {
     $ZodType.init(inst, def);
     inst._zod.parse = (payload, _ctx) => {
@@ -280260,10 +280260,10 @@ function nativeEnum(entries, params) {
         ...util.normalizeParams(params),
     });
 }
-const ZodLiteral = /*@__PURE__*/ (/* unused pure expression or super */ null && (core.$constructor("ZodLiteral", (inst, def) => {
-    core.$ZodLiteral.init(inst, def);
+const ZodLiteral = /*@__PURE__*/ $constructor("ZodLiteral", (inst, def) => {
+    $ZodLiteral.init(inst, def);
     ZodType.init(inst, def);
-    inst._zod.processJSONSchema = (ctx, json, params) => processors.literalProcessor(inst, ctx, json, params);
+    inst._zod.processJSONSchema = (ctx, json, params) => literalProcessor(inst, ctx, json, params);
     inst.values = new Set(def.values);
     Object.defineProperty(inst, "value", {
         get() {
@@ -280273,12 +280273,12 @@ const ZodLiteral = /*@__PURE__*/ (/* unused pure expression or super */ null && 
             return def.values[0];
         },
     });
-})));
+});
 function literal(value, params) {
     return new ZodLiteral({
         type: "literal",
         values: Array.isArray(value) ? value : [value],
-        ...util.normalizeParams(params),
+        ...normalizeParams(params),
     });
 }
 const ZodFile = /*@__PURE__*/ (/* unused pure expression or super */ null && (core.$constructor("ZodFile", (inst, def) => {
@@ -280643,6 +280643,7 @@ function preprocess(fn, schema) {
 
 
 const CONFIG_FILE_NAMES = ['.leakroute.yml', '.leakroute.yaml'];
+const DEFAULT_BASELINE = '.leakroute-baseline.json';
 const fileSchema = object({
     'fail-on': schemas_enum(['high', 'medium', 'low', 'none']).default('high'),
     scan: object({
@@ -280656,6 +280657,8 @@ const fileSchema = object({
     'ignore-paths': array(schemas_string().min(1)).default([]),
     'max-file-size': schemas_number().int().positive().default(1_000_000),
     'git-history': schemas_boolean().default(false),
+    'disable-rules': array(schemas_string().min(1)).default([]),
+    baseline: union([schemas_string().min(1), literal(false)]).default(DEFAULT_BASELINE),
 })
     .strict();
 class ConfigError extends Error {
@@ -280700,9 +280703,14 @@ function fromParsed(data) {
         ignorePaths: data['ignore-paths'],
         maxFileSize: data['max-file-size'],
         gitHistory: data['git-history'],
+        disableRules: data['disable-rules'],
+        baseline: data.baseline === false ? null : data.baseline,
     };
 }
 
+// EXTERNAL MODULE: ./node_modules/picomatch/index.js
+var picomatch = __nccwpck_require__(4006);
+var picomatch_default = /*#__PURE__*/__nccwpck_require__.n(picomatch);
 ;// CONCATENATED MODULE: external "node:readline"
 const external_node_readline_namespaceObject = __WEBPACK_EXTERNAL_createRequire(import.meta.url)("node:readline");
 // EXTERNAL MODULE: external "node:crypto"
@@ -281318,9 +281326,6 @@ function unquote(p) {
     return p.startsWith('"') && p.endsWith('"') ? p.slice(1, -1).replace(/\\(.)/g, '$1') : p;
 }
 
-// EXTERNAL MODULE: ./node_modules/picomatch/index.js
-var picomatch = __nccwpck_require__(4006);
-var picomatch_default = /*#__PURE__*/__nccwpck_require__.n(picomatch);
 ;// CONCATENATED MODULE: ./src/core/risk.ts
 
 /**
@@ -284155,6 +284160,64 @@ async function analyzePython(sources, ctx, unparsed) {
     }
 }
 
+;// CONCATENATED MODULE: ./src/version.ts
+// Kept in sync with package.json by tests/unit/version.test.ts.
+const src_version_VERSION = '0.1.0';
+const version_TOOL_NAME = 'leakroute';
+
+;// CONCATENATED MODULE: ./src/core/baseline.ts
+
+
+
+
+/**
+ * A baseline records the findings that already exist, so later scans report only
+ * new ones. It lets an existing project adopt leakroute without fixing everything
+ * first.
+ *
+ * Entries are matched by fingerprint, which does not depend on line numbers and
+ * never contains a secret (see fingerprint.ts). The file has no timestamp, so
+ * regenerating an unchanged baseline produces no diff.
+ */
+const entrySchema = object({
+    fingerprint: schemas_string().min(1),
+    ruleId: schemas_string(),
+    file: schemas_string(),
+    title: schemas_string(),
+});
+const baselineSchema = object({
+    tool: literal(version_TOOL_NAME),
+    version: literal(1),
+    findings: array(entrySchema),
+});
+function readBaseline(file) {
+    if (!(0,external_node_fs_.existsSync)(file))
+        return null;
+    let raw;
+    try {
+        raw = JSON.parse((0,external_node_fs_.readFileSync)(file, 'utf8'));
+    }
+    catch (err) {
+        throw new ConfigError(`Could not read baseline ${file}: ${err.message}`);
+    }
+    const parsed = baselineSchema.safeParse(raw);
+    if (!parsed.success) {
+        throw new ConfigError(`Invalid baseline ${file}. Regenerate it with \`leakroute baseline\`. (${parsed.error.issues[0]?.message ?? 'unknown error'})`);
+    }
+    return new Set(parsed.data.findings.map((f) => f.fingerprint));
+}
+function writeBaseline(file, findings) {
+    const entries = findings
+        .map((f) => ({ fingerprint: f.fingerprint, ruleId: f.ruleId, file: f.file, title: f.title }))
+        .sort((a, b) => a.file.localeCompare(b.file) ||
+        a.ruleId.localeCompare(b.ruleId) ||
+        a.fingerprint.localeCompare(b.fingerprint));
+    const unique = entries.filter((e, i) => i === 0 || e.fingerprint !== entries[i - 1]?.fingerprint);
+    const body = { tool: TOOL_NAME, version: 1, findings: unique };
+    writeFileSync(file, `${JSON.stringify(body, null, 2)}\n`);
+    return unique.length;
+}
+
 ;// CONCATENATED MODULE: external "node:fs/promises"
 const promises_namespaceObject = __WEBPACK_EXTERNAL_createRequire(import.meta.url)("node:fs/promises");
 // EXTERNAL MODULE: external "node:util"
@@ -284321,7 +284384,83 @@ function countBySeverity(findings) {
     return counts;
 }
 
+;// CONCATENATED MODULE: ./src/core/suppress.ts
+
+
+
+/**
+ * Line-level suppressions:
+ *
+ *   const key = 'pk_test_123'; // leakroute-ignore: publishable test key
+ *   # leakroute-ignore[endpoint/flask-unprotected-route]: public status page
+ *   @app.get("/status")
+ *
+ * A marker silences findings on its own line, or on the next line when the
+ * marker line holds nothing but the comment. A reason is required: a bare
+ * `leakroute-ignore` does not silence anything, so every exception is explained.
+ */
+const MARKER = /leakroute-ignore(?:\[([^\]]*)\])?\s*:\s*(.*)$/;
+/** Comment closers to strip from the end of a reason. */
+const CLOSER = /\s*(?:\*\/|-->|#\}|%\}|\}\})\s*$/;
+/** A line that contains only a comment (in any common syntax) up to the marker. */
+const COMMENT_ONLY = /^\s*(?:\/\/|#|\/\*+|\*|<!--|--|;|\{#|\{\{!?--)\s*leakroute-ignore/;
+const MAX_BYTES = 5_000_000;
+function parseSuppressions(content) {
+    const out = [];
+    const lines = content.split(/\r?\n/);
+    lines.forEach((text, index) => {
+        const match = MARKER.exec(text);
+        if (!match)
+            return;
+        const reason = (match[2] ?? '').replace(CLOSER, '').trim();
+        if (!reason)
+            return;
+        const rules = match[1]
+            ?.split(',')
+            .map((r) => r.trim())
+            .filter(Boolean);
+        const line = COMMENT_ONLY.test(text) ? index + 2 : index + 1;
+        out.push({ line, rules: rules && rules.length > 0 ? rules : null, reason });
+    });
+    return out;
+}
+/** Splits findings into kept and suppressed, reading each affected file once. */
+function applySuppressions(root, findings) {
+    const cache = new Map();
+    const suppressionsFor = (file) => {
+        let entries = cache.get(file);
+        if (!entries) {
+            entries = readSuppressions(external_node_path_default().join(root, file));
+            cache.set(file, entries);
+        }
+        return entries;
+    };
+    const kept = [];
+    const suppressed = [];
+    for (const f of findings) {
+        // History findings point at lines that may no longer exist; use the baseline for those.
+        const silenced = !f.commit &&
+            suppressionsFor(f.file).some((s) => s.line === f.line && (s.rules === null || picomatch_default().isMatch(f.ruleId, s.rules)));
+        (silenced ? suppressed : kept).push(f);
+    }
+    return { kept, suppressed };
+}
+function readSuppressions(absPath) {
+    try {
+        if ((0,external_node_fs_.statSync)(absPath).size > MAX_BYTES)
+            return [];
+        const content = (0,external_node_fs_.readFileSync)(absPath, 'utf8');
+        return content.includes('leakroute-ignore') ? parseSuppressions(content) : [];
+    }
+    catch {
+        return [];
+    }
+}
+
 ;// CONCATENATED MODULE: ./src/core/scanner.ts
+
+
+
 
 
 
@@ -284364,10 +284503,25 @@ async function scan(options) {
         // A secret that is still in the working tree is already reported there.
         findings.push(...history.filter((f) => !current.has(secretIdentity(f))));
     }
+    // Filters, in order: disabled rules, `leakroute-ignore` comments, baseline.
+    const isDisabled = config.disableRules.length > 0 ? picomatch_default()(config.disableRules) : () => false;
+    const enabled = findings.filter((f) => !isDisabled(f.ruleId));
+    const { kept, suppressed } = applySuppressions(root, enabled);
+    let reported = kept;
+    let baselined = 0;
+    if (config.baseline && options.useBaseline !== false) {
+        const known = readBaseline(external_node_path_default().resolve(root, config.baseline));
+        if (known) {
+            reported = kept.filter((f) => !known.has(f.fingerprint));
+            baselined = kept.length - reported.length;
+        }
+    }
     return {
-        findings: findings.sort(compareFindings),
+        findings: reported.sort(compareFindings),
         filesScanned: files.length,
         unparsedFiles: unparsed,
+        suppressed: suppressed.length,
+        baselined,
         durationMs: Math.round(performance.now() - started),
     };
 }
@@ -284387,11 +284541,6 @@ async function forEachConcurrent(items, limit, fn) {
 
 // EXTERNAL MODULE: external "node:zlib"
 var external_node_zlib_ = __nccwpck_require__(8522);
-;// CONCATENATED MODULE: ./src/version.ts
-// Kept in sync with package.json by tests/unit/version.test.ts.
-const src_version_VERSION = '0.1.0';
-const TOOL_NAME = 'leakroute';
-
 ;// CONCATENATED MODULE: ./src/reporters/markdown.ts
 
 const SEVERITY_BADGE = {
@@ -284434,7 +284583,7 @@ const MAX_LENGTH = 60_000;
 const MAX_ROWS = 50;
 function renderPrComment(input) {
     const { findings } = input;
-    const out = [PR_COMMENT_MARKER, `## 🛡️ ${TOOL_NAME}`, ''];
+    const out = [PR_COMMENT_MARKER, `## 🛡️ ${version_TOOL_NAME}`, ''];
     if (findings.length === 0) {
         out.push('✅ No issues found in the files changed by this pull request.');
     }
@@ -284456,7 +284605,7 @@ function renderPrComment(input) {
         const where = input.runUrl ? `[the job summary](${input.runUrl})` : 'the job summary';
         out.push('', `ℹ️ ${input.otherCount} more in files this PR did not change. See ${where}.`);
     }
-    out.push('', `<sub>${TOOL_NAME} v${src_version_VERSION} · static analysis can be wrong. To silence a line, add \`leakroute-ignore: <reason>\` in a comment on it. This comment is updated on every push.</sub>`);
+    out.push('', `<sub>${version_TOOL_NAME} v${src_version_VERSION} · static analysis can be wrong. To silence a line, add \`leakroute-ignore: <reason>\` in a comment on it. This comment is updated on every push.</sub>`);
     let body = out.join('\n');
     if (body.length > MAX_LENGTH) {
         body = `${body.slice(0, MAX_LENGTH)}\n\n…(truncated)</details>`;
@@ -284652,7 +284801,7 @@ function renderSarif(result) {
             {
                 tool: {
                     driver: {
-                        name: TOOL_NAME,
+                        name: version_TOOL_NAME,
                         semanticVersion: src_version_VERSION,
                         informationUri: 'https://github.com/UmutBolatbas/leakroute',
                         rules: ruleIds.map((id) => {
@@ -284710,14 +284859,26 @@ function toPascalCase(id) {
         .join('');
 }
 
+;// CONCATENATED MODULE: ./src/reporters/hidden.ts
+/** "Not shown: 2 silenced by leakroute-ignore, 5 already in the baseline." or `null`. */
+function hiddenNote(result) {
+    const parts = [];
+    if (result.suppressed > 0)
+        parts.push(`${result.suppressed} silenced by leakroute-ignore comments`);
+    if (result.baselined > 0)
+        parts.push(`${result.baselined} already in the baseline`);
+    return parts.length > 0 ? `Not shown: ${parts.join(', ')}.` : null;
+}
+
 ;// CONCATENATED MODULE: ./src/reporters/summary.ts
+
 
 
 /** Markdown for the GitHub Actions job summary. */
 function renderSummary(result, options = {}) {
     const maxRows = options.maxRows ?? 200;
     const { findings } = result;
-    const lines = [`## 🛡️ ${TOOL_NAME}`, ''];
+    const lines = [`## 🛡️ ${version_TOOL_NAME}`, ''];
     if (findings.length === 0) {
         lines.push(`✅ No issues found in ${result.filesScanned} files.`);
     }
@@ -284731,10 +284892,13 @@ function renderSummary(result, options = {}) {
             lines.push('', `…and ${findings.length - maxRows} more. See the SARIF file or Code Scanning for the full list.`);
         }
     }
+    const hidden = hiddenNote(result);
+    if (hidden)
+        lines.push('', `ℹ️ ${hidden}`);
     if (result.unparsedFiles.length > 0) {
         lines.push('', `⚠️ ${result.unparsedFiles.length} file(s) could not be parsed and were skipped by endpoint rules.`);
     }
-    lines.push('', `<sub>${TOOL_NAME} v${src_version_VERSION} · static analysis can be wrong; every finding explains why it was flagged.</sub>`);
+    lines.push('', `<sub>${version_TOOL_NAME} v${src_version_VERSION} · static analysis can be wrong; every finding explains why it was flagged.</sub>`);
     return lines.join('\n');
 }
 
