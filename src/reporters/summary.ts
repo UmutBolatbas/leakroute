@@ -1,5 +1,6 @@
 import type { ScanResult } from '../core/types.js';
 import { TOOL_NAME, VERSION } from '../version.js';
+import { hiddenNote } from './hidden.js';
 import { cell, code, countsLine, location, SEVERITY_BADGE } from './markdown.js';
 
 export interface SummaryOptions {
@@ -38,6 +39,8 @@ export function renderSummary(result: ScanResult, options: SummaryOptions = {}):
     }
   }
 
+  const hidden = hiddenNote(result);
+  if (hidden) lines.push('', `ℹ️ ${hidden}`);
   if (result.unparsedFiles.length > 0) {
     lines.push(
       '',

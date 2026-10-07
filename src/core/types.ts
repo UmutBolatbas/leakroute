@@ -49,4 +49,8 @@ export interface ScanResult extends ScanStats {
   findings: Finding[];
   /** Source files that could not be parsed, so endpoint rules did not see them. */
   unparsedFiles: string[];
+  /** Findings silenced by `leakroute-ignore: <reason>` comments. */
+  suppressed: number;
+  /** Findings already recorded in the baseline file. */
+  baselined: number;
 }

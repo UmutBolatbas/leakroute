@@ -28,6 +28,8 @@ const result = (findings: Finding[]): ScanResult => ({
   filesScanned: 10,
   durationMs: 5,
   unparsedFiles: [],
+  suppressed: 0,
+  baselined: 0,
 });
 
 describe('SARIF', () => {

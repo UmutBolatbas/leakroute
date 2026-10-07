@@ -1,6 +1,7 @@
 import pc from 'picocolors';
 import { countBySeverity } from '../core/severity.js';
 import type { Finding, ScanResult, Severity } from '../core/types.js';
+import { hiddenNote } from './hidden.js';
 import { TOOL_NAME, VERSION } from '../version.js';
 
 export interface TerminalOptions {
@@ -44,6 +45,9 @@ export function renderTerminal(result: ScanResult, options: TerminalOptions): st
       result.unparsedFiles.length > 3 ? ` and ${result.unparsedFiles.length - 3} more` : '';
     out.push(c.yellow(`⚠ Could not parse ${shown}${more}; endpoint rules skipped them.`), '');
   }
+
+  const hidden = hiddenNote(result);
+  if (hidden) out.push(c.dim(hidden), '');
 
   if (result.findings.length === 0) {
     out.push(c.green('✔ No issues found.'));
