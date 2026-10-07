@@ -42,22 +42,40 @@ export async function upsertPrComment(
     issue_number: issueNumber,
     per_page: 100,
   });
-  const ours = comments.filter((c) => c.body?.includes(PR_COMMENT_MARKER));
-  // Prefer a bot-authored one, so a user quoting the marker can't hijack the update.
-  const existing = ours.find((c) => c.user?.type === 'Bot') ?? ours[0];
+  // Only a comment the token itself posted counts as ours: a token with write
+  // access can edit anyone's comment, so a person quoting the marker must not
+  // have their comment overwritten.
+  const login = await authenticatedLogin(octokit);
+  const existing = comments.find(
+    (c) =>
+      c.body?.startsWith(PR_COMMENT_MARKER) &&
+      (login ? c.user?.login === login : c.user?.type === 'Bot'),
+  );
 
   if (existing) {
     try {
       await octokit.rest.issues.updateComment({ ...repo, comment_id: existing.id, body });
       return 'updated';
     } catch (err) {
-      // Not ours to edit (e.g. posted by another user or token): fall through and create.
+      // Not ours to edit (e.g. another bot's comment): fall through and create.
       if (!isStatus(err, 403) && !isStatus(err, 404)) throw err;
     }
   }
   if (!options.createIfMissing) return 'skipped';
   await octokit.rest.issues.createComment({ ...repo, issue_number: issueNumber, body });
   return 'created';
+}
+
+/**
+ * The login behind a personal access token. The workflow's GITHUB_TOKEN and
+ * GitHub App tokens can't call this endpoint; their comments are posted by a bot.
+ */
+async function authenticatedLogin(octokit: Octokit): Promise<string | null> {
+  try {
+    return (await octokit.rest.users.getAuthenticated()).data.login;
+  } catch {
+    return null;
+  }
 }
 
 /** Uploads SARIF to Code Scanning. Returns the upload id. */
