@@ -1,0 +1,67 @@
+import path from 'node:path';
+import { scanGitHistory } from '../git/history.js';
+import { scanSensitiveFile, scanTextForSecrets } from '../rules/secrets/index.js';
+import type { ResolvedConfig } from './config.js';
+import { createPathFilter, listFiles, readSourceFile } from './files.js';
+import { compareFindings } from './severity.js';
+import type { Finding, ScanResult } from './types.js';
+
+export interface ScanOptions {
+  /** Directory to scan. */
+  root: string;
+  config: ResolvedConfig;
+}
+
+const READ_CONCURRENCY = 32;
+
+export async function scan(options: ScanOptions): Promise<ScanResult> {
+  const started = performance.now();
+  const root = path.resolve(options.root);
+  const { config } = options;
+
+  const files = await listFiles(root, { ignorePaths: config.ignorePaths });
+  const findings: Finding[] = [];
+
+  await forEachConcurrent(files, READ_CONCURRENCY, async (rel) => {
+    const source = await readSourceFile(root, rel, config.maxFileSize);
+    if (config.scan.secrets) {
+      const sensitive = scanSensitiveFile(rel, source?.content ?? null);
+      if (sensitive) findings.push(sensitive);
+      if (source) findings.push(...scanTextForSecrets({ file: rel, text: source.content }));
+    }
+  });
+
+  if (config.scan.secrets && config.gitHistory) {
+    const current = new Set(findings.map(secretIdentity));
+    const history = await scanGitHistory(root, {
+      shouldScan: createPathFilter(config.ignorePaths),
+    });
+    // A secret that is still in the working tree is already reported there.
+    findings.push(...history.filter((f) => !current.has(secretIdentity(f))));
+  }
+
+  return {
+    findings: findings.sort(compareFindings),
+    filesScanned: files.length,
+    durationMs: Math.round(performance.now() - started),
+  };
+}
+
+function secretIdentity(f: Finding): string {
+  return `${f.ruleId}\u0000${f.file}\u0000${f.redactedValue ?? ''}`;
+}
+
+async function forEachConcurrent<T>(
+  items: readonly T[],
+  limit: number,
+  fn: (item: T) => Promise<void>,
+): Promise<void> {
+  let next = 0;
+  const worker = async () => {
+    while (next < items.length) {
+      const item = items[next++] as T;
+      await fn(item);
+    }
+  };
+  await Promise.all(Array.from({ length: Math.min(limit, items.length) }, worker));
+}
