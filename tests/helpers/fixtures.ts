@@ -73,3 +73,11 @@ export function expectedMarkers(dir: string, rel: string): string[] {
     .split(/\r?\n/)
     .flatMap((line, i) => [...line.matchAll(/expect: ([\w/-]+)/g)].map((m) => `${m[1]}@${i + 1}`));
 }
+
+/** `expect:` markers from every file in `dir`, as `file:rule-id@line`. */
+export function allExpectedMarkers(dir: string): string[] {
+  return walk(dir).flatMap((abs) => {
+    const rel = path.relative(dir, abs).split(path.sep).join('/');
+    return expectedMarkers(dir, rel).map((m) => `${rel}:${m}`);
+  });
+}

@@ -47,4 +47,6 @@ export interface ScanStats {
 
 export interface ScanResult extends ScanStats {
   findings: Finding[];
+  /** Source files that could not be parsed, so endpoint rules did not see them. */
+  unparsedFiles: string[];
 }

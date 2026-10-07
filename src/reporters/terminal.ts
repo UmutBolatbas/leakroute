@@ -38,6 +38,13 @@ export function renderTerminal(result: ScanResult, options: TerminalOptions): st
     out.push('');
   }
 
+  if (result.unparsedFiles.length > 0) {
+    const shown = result.unparsedFiles.slice(0, 3).join(', ');
+    const more =
+      result.unparsedFiles.length > 3 ? ` and ${result.unparsedFiles.length - 3} more` : '';
+    out.push(c.yellow(`⚠ Could not parse ${shown}${more}; endpoint rules skipped them.`), '');
+  }
+
   if (result.findings.length === 0) {
     out.push(c.green('✔ No issues found.'));
   } else {

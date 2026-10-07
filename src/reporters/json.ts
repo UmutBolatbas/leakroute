@@ -11,6 +11,7 @@ export function renderJson(result: ScanResult): string {
         durationMs: result.durationMs,
         total: result.findings.length,
         ...countBySeverity(result.findings),
+        unparsedFiles: result.unparsedFiles,
       },
       findings: result.findings,
     },

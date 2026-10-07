@@ -1,10 +1,11 @@
 import path from 'node:path';
 import { scanGitHistory } from '../git/history.js';
+import { analyzeEndpoints, wantsForEndpoints } from '../rules/endpoints/index.js';
 import { scanSensitiveFile, scanTextForSecrets } from '../rules/secrets/index.js';
 import type { ResolvedConfig } from './config.js';
 import { createPathFilter, listFiles, readSourceFile } from './files.js';
 import { compareFindings } from './severity.js';
-import type { Finding, ScanResult } from './types.js';
+import type { Finding, ScanResult, SourceFile } from './types.js';
 
 export interface ScanOptions {
   /** Directory to scan. */
@@ -21,15 +22,26 @@ export async function scan(options: ScanOptions): Promise<ScanResult> {
 
   const files = await listFiles(root, { ignorePaths: config.ignorePaths });
   const findings: Finding[] = [];
+  const endpointSources: SourceFile[] = [];
 
   await forEachConcurrent(files, READ_CONCURRENCY, async (rel) => {
     const source = await readSourceFile(root, rel, config.maxFileSize);
+    if (source && config.scan.endpoints && wantsForEndpoints(rel)) endpointSources.push(source);
     if (config.scan.secrets) {
       const sensitive = scanSensitiveFile(rel, source?.content ?? null);
       if (sensitive) findings.push(sensitive);
       if (source) findings.push(...scanTextForSecrets({ file: rel, text: source.content }));
     }
   });
+
+  let unparsed: string[] = [];
+  if (config.scan.endpoints) {
+    // Sorted so cross-file resolution is deterministic regardless of read order.
+    endpointSources.sort((a, b) => a.path.localeCompare(b.path));
+    const endpoints = analyzeEndpoints(endpointSources, config);
+    findings.push(...endpoints.findings);
+    unparsed = endpoints.unparsed;
+  }
 
   if (config.scan.secrets && config.gitHistory) {
     const current = new Set(findings.map(secretIdentity));
@@ -43,6 +55,7 @@ export async function scan(options: ScanOptions): Promise<ScanResult> {
   return {
     findings: findings.sort(compareFindings),
     filesScanned: files.length,
+    unparsedFiles: unparsed,
     durationMs: Math.round(performance.now() - started),
   };
 }
