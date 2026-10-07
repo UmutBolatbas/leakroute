@@ -284198,7 +284198,10 @@ function readBaseline(file) {
         raw = JSON.parse((0,external_node_fs_.readFileSync)(file, 'utf8'));
     }
     catch (err) {
-        throw new ConfigError(`Could not read baseline ${file}: ${err.message}`);
+        // JSON.parse errors quote the start of the file. The path can come from a
+        // config file a pull request controls, so never echo another file's contents.
+        const why = err instanceof SyntaxError ? 'not valid JSON' : err.message;
+        throw new ConfigError(`Could not read baseline ${file}: ${why}`);
     }
     const parsed = baselineSchema.safeParse(raw);
     if (!parsed.success) {
@@ -284548,14 +284551,48 @@ const SEVERITY_BADGE = {
     medium: '🟠 medium',
     low: '🔵 low',
 };
-/** Makes text safe inside a Markdown table cell. */
-function cell(text) {
-    return text.replace(/\\/g, '\\\\').replace(/\|/g, '\\|').replace(/\r?\n/g, ' ');
+/** Zero-width space: breaks @mentions and autolinks without changing what readers see. */
+const ZWSP = '​';
+/**
+ * Makes rendered Markdown safe inside a table cell. GFM splits cells on every
+ * `|`, even inside code spans, unless it is escaped.
+ */
+function cell(markdown) {
+    return markdown.replace(/\|/g, '\\|').replace(/\r?\n/g, ' ');
 }
-/** Wraps text in a code span that survives backticks inside it. */
+/** Wraps text in a code span whose fence no backtick inside it can close. */
 function code(text) {
-    const fence = text.includes('`') ? '``' : '`';
-    return `${fence}${text.includes('`') ? ` ${text} ` : text}${fence}`;
+    const flat = text.replace(/\r?\n/g, ' ');
+    const longestRun = Math.max(0, ...(flat.match(/`+/g) ?? []).map((run) => run.length));
+    const fence = '`'.repeat(longestRun + 1);
+    return longestRun > 0 ? `${fence} ${flat} ${fence}` : `${fence}${flat}${fence}`;
+}
+/**
+ * Escapes plain text so Markdown and HTML in it render literally. Findings quote
+ * route paths and names from the scanned code, which a pull request controls, so
+ * this also stops them from pinging people (`@team`) or posting links as the bot.
+ */
+function escapeText(text) {
+    return text
+        .replace(/\r?\n/g, ' ')
+        .replace(/@/g, `@${ZWSP}`)
+        .replace(/:\/\//g, `:/${ZWSP}/`)
+        .replace(/www\./gi, (m) => `${m.slice(0, 3)}${ZWSP}.`)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/[\\`*_[\]()#!~]/g, '\\$&');
+}
+/**
+ * Renders a finding message (plain text with `code` spans) as safe Markdown:
+ * code spans stay code, everything else is escaped. A stray backtick in a quoted
+ * value can shift where spans start, but every segment is still made safe.
+ */
+function inline(message) {
+    return message
+        .split('`')
+        .map((part, i) => (i % 2 === 1 ? (part ? code(part) : '') : escapeText(part)))
+        .join('');
 }
 /**
  * Builds a link to the finding in the repository, or a plain code span when no
@@ -284591,13 +284628,13 @@ function renderPrComment(input) {
         out.push(`Found **${findings.length} possible ${findings.length === 1 ? 'issue' : 'issues'}** in files changed by this pull request: ${countsLine(findings)}`, '', '| Risk | Location | Issue |', '| --- | --- | --- |');
         const shown = findings.slice(0, MAX_ROWS);
         for (const f of shown) {
-            out.push(`| ${SEVERITY_BADGE[f.severity]} | ${markdown_location(f, input.linkBase)} | ${cell(f.title)} |`);
+            out.push(`| ${SEVERITY_BADGE[f.severity]} | ${cell(markdown_location(f, input.linkBase))} | ${cell(inline(f.title))} |`);
         }
         if (findings.length > shown.length)
             out.push('', `…and ${findings.length - shown.length} more.`);
         out.push('', '<details><summary>Why these were flagged and how to fix them</summary>', '');
         shown.forEach((f, i) => {
-            out.push(`#### ${i + 1}. ${cell(f.title)} — ${code(`${f.file}:${f.line}`)}`, '', `**Why:** ${f.reason}`, '', `**Fix:** ${f.remediation}`, '');
+            out.push(`#### ${i + 1}. ${inline(f.title)} — ${code(`${f.file}:${f.line}`)}`, '', `**Why:** ${inline(f.reason)}`, '', `**Fix:** ${inline(f.remediation)}`, '');
         });
         out.push('</details>');
     }
@@ -284636,16 +284673,19 @@ async function upsertPrComment(octokit, repo, issueNumber, body, options) {
         issue_number: issueNumber,
         per_page: 100,
     });
-    const ours = comments.filter((c) => c.body?.includes(PR_COMMENT_MARKER));
-    // Prefer a bot-authored one, so a user quoting the marker can't hijack the update.
-    const existing = ours.find((c) => c.user?.type === 'Bot') ?? ours[0];
+    // Only a comment the token itself posted counts as ours: a token with write
+    // access can edit anyone's comment, so a person quoting the marker must not
+    // have their comment overwritten.
+    const login = await authenticatedLogin(octokit);
+    const existing = comments.find((c) => c.body?.startsWith(PR_COMMENT_MARKER) &&
+        (login ? c.user?.login === login : c.user?.type === 'Bot'));
     if (existing) {
         try {
             await octokit.rest.issues.updateComment({ ...repo, comment_id: existing.id, body });
             return 'updated';
         }
         catch (err) {
-            // Not ours to edit (e.g. posted by another user or token): fall through and create.
+            // Not ours to edit (e.g. another bot's comment): fall through and create.
             if (!isStatus(err, 403) && !isStatus(err, 404))
                 throw err;
         }
@@ -284654,6 +284694,18 @@ async function upsertPrComment(octokit, repo, issueNumber, body, options) {
         return 'skipped';
     await octokit.rest.issues.createComment({ ...repo, issue_number: issueNumber, body });
     return 'created';
+}
+/**
+ * The login behind a personal access token. The workflow's GITHUB_TOKEN and
+ * GitHub App tokens can't call this endpoint; their comments are posted by a bot.
+ */
+async function authenticatedLogin(octokit) {
+    try {
+        return (await octokit.rest.users.getAuthenticated()).data.login;
+    }
+    catch {
+        return null;
+    }
 }
 /** Uploads SARIF to Code Scanning. Returns the upload id. */
 async function uploadSarif(octokit, repo, options) {
@@ -284886,7 +284938,7 @@ function renderSummary(result, options = {}) {
         lines.push(`**${findings.length} possible ${findings.length === 1 ? 'issue' : 'issues'}** in ${result.filesScanned} files: ${countsLine(findings)}`, '', '| Risk | Location | Rule | Description | Suggested fix |', '| --- | --- | --- | --- | --- |');
         for (const f of findings.slice(0, maxRows)) {
             const history = f.commit ? ` _(git history, ${f.commit.slice(0, 7)})_` : '';
-            lines.push(`| ${SEVERITY_BADGE[f.severity]} | ${markdown_location(f, options.linkBase)}${history} | ${code(f.ruleId)} | **${cell(f.title)}**. ${cell(f.reason)} | ${cell(f.remediation)} |`);
+            lines.push(`| ${SEVERITY_BADGE[f.severity]} | ${cell(markdown_location(f, options.linkBase))}${history} | ${code(f.ruleId)} | **${cell(inline(f.title))}**. ${cell(inline(f.reason))} | ${cell(inline(f.remediation))} |`);
         }
         if (findings.length > maxRows) {
             lines.push('', `…and ${findings.length - maxRows} more. See the SARIF file or Code Scanning for the full list.`);
