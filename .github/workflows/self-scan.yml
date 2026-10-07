@@ -1,0 +1,27 @@
+# leakroute scans its own repository on every push and pull request (dogfooding).
+name: self-scan
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+  pull-requests: write
+  security-events: write
+
+jobs:
+  leakroute:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0 # full history for git-history scanning
+          persist-credentials: false
+      - uses: ./
+        with:
+          fail-on: low
+          git-history: true
+          comment-on-pr: true
+          upload-sarif: true
