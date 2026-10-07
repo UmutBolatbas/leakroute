@@ -6,6 +6,7 @@ import { scan } from '../core/scanner.js';
 import { exceedsThreshold } from '../core/severity.js';
 import type { FailOn } from '../core/types.js';
 import { renderJson } from '../reporters/json.js';
+import { renderSarif } from '../reporters/sarif.js';
 import { renderTerminal } from '../reporters/terminal.js';
 import { TOOL_NAME, VERSION } from '../version.js';
 
@@ -20,7 +21,7 @@ export const EXIT_OK = 0;
 export const EXIT_FINDINGS = 1;
 export const EXIT_ERROR = 2;
 
-const FORMATS = ['text', 'json'] as const;
+const FORMATS = ['text', 'json', 'sarif'] as const;
 const FAIL_ON = ['high', 'medium', 'low', 'none'] as const;
 
 interface ScanFlags {
@@ -102,7 +103,9 @@ async function runScan(target: string, flags: ScanFlags, io: CliIo): Promise<num
   const report =
     flags.format === 'json'
       ? renderJson(result)
-      : renderTerminal(result, { color: flags.color && io.color && !flags.output });
+      : flags.format === 'sarif'
+        ? renderSarif(result)
+        : renderTerminal(result, { color: flags.color && io.color && !flags.output });
 
   if (flags.output) {
     writeFileSync(path.resolve(flags.output), `${report}\n`);
