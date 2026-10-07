@@ -12,6 +12,7 @@
   "types": "lib/index.d.ts",
   "files": [
     "lib",
+    "vendor/grammars",
     "LICENSE",
     "README.md",
     "THIRD_PARTY_NOTICES.md"
@@ -55,6 +56,7 @@
     "picocolors": "^1.1.1",
     "picomatch": "^4.0.7",
     "typescript": "~6.0.3",
+    "web-tree-sitter": "^0.27.0",
     "yaml": "^2.9.1",
     "zod": "^4.6.5"
   },
