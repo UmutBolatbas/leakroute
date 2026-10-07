@@ -196,7 +196,7 @@ auth-middleware: []
 public-routes: []
 #  - /api/webhooks/*
 
-# Paths to skip (glob patterns, relative to this file).
+# Paths to skip (glob patterns, relative to the scanned directory).
 ignore-paths:
   - '**/tests/**'
   - '**/fixtures/**'
