@@ -2,4 +2,4 @@
 fail-on: low
 ignore-paths:
   # Deliberately vulnerable test inputs.
-  - "tests/fixtures/vulnerable/**"
+  - 'tests/fixtures/vulnerable/**'
