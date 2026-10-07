@@ -1,0 +1,71 @@
+{
+  "name": "leakroute",
+  "version": "0.1.0",
+  "description": "Catch unprotected API endpoints and leaked secrets in AI-generated code before they ship.",
+  "license": "MIT",
+  "author": "UmutBolatbas",
+  "type": "module",
+  "bin": {
+    "leakroute": "lib/cli.js"
+  },
+  "main": "lib/index.js",
+  "types": "lib/index.d.ts",
+  "files": [
+    "lib",
+    "LICENSE",
+    "README.md",
+    "THIRD_PARTY_NOTICES.md"
+  ],
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "lint": "eslint .",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "check": "npm run typecheck && npm run lint && npm run format:check && npm test"
+  },
+  "keywords": [
+    "security",
+    "secrets",
+    "secret-scanning",
+    "authentication",
+    "authorization",
+    "static-analysis",
+    "github-action",
+    "sarif",
+    "ai-generated-code"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/UmutBolatbas/leakroute.git"
+  },
+  "bugs": {
+    "url": "https://github.com/UmutBolatbas/leakroute/issues"
+  },
+  "homepage": "https://github.com/UmutBolatbas/leakroute#readme",
+  "dependencies": {
+    "commander": "^14.0.3",
+    "ignore": "^7.0.12",
+    "picocolors": "^1.1.1",
+    "picomatch": "^4.0.7",
+    "yaml": "^2.9.1",
+    "zod": "^4.6.5"
+  },
+  "devDependencies": {
+    "@eslint/js": "^10.0.1",
+    "@types/node": "^22.20.5",
+    "@types/picomatch": "^4.0.3",
+    "eslint": "^10.12.0",
+    "eslint-config-prettier": "^10.1.8",
+    "globals": "^17.13.0",
+    "prettier": "^3.9.9",
+    "typescript": "^6.0.3",
+    "typescript-eslint": "^8.71.1",
+    "vitest": "^5.0.3"
+  }
+}

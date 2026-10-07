@@ -1,0 +1,6 @@
+node_modules/
+lib/
+coverage/
+*.log
+.DS_Store
+# dist/ is committed on purpose: GitHub runs the bundled action from it.
