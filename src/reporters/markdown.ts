@@ -7,15 +7,52 @@ export const SEVERITY_BADGE: Record<Severity, string> = {
   low: '🔵 low',
 };
 
-/** Makes text safe inside a Markdown table cell. */
-export function cell(text: string): string {
-  return text.replace(/\\/g, '\\\\').replace(/\|/g, '\\|').replace(/\r?\n/g, ' ');
+/** Zero-width space: breaks @mentions and autolinks without changing what readers see. */
+const ZWSP = '​';
+
+/**
+ * Makes rendered Markdown safe inside a table cell. GFM splits cells on every
+ * `|`, even inside code spans, unless it is escaped.
+ */
+export function cell(markdown: string): string {
+  return markdown.replace(/\|/g, '\\|').replace(/\r?\n/g, ' ');
 }
 
-/** Wraps text in a code span that survives backticks inside it. */
+/** Wraps text in a code span whose fence no backtick inside it can close. */
 export function code(text: string): string {
-  const fence = text.includes('`') ? '``' : '`';
-  return `${fence}${text.includes('`') ? ` ${text} ` : text}${fence}`;
+  const flat = text.replace(/\r?\n/g, ' ');
+  const longestRun = Math.max(0, ...(flat.match(/`+/g) ?? []).map((run) => run.length));
+  const fence = '`'.repeat(longestRun + 1);
+  return longestRun > 0 ? `${fence} ${flat} ${fence}` : `${fence}${flat}${fence}`;
+}
+
+/**
+ * Escapes plain text so Markdown and HTML in it render literally. Findings quote
+ * route paths and names from the scanned code, which a pull request controls, so
+ * this also stops them from pinging people (`@team`) or posting links as the bot.
+ */
+export function escapeText(text: string): string {
+  return text
+    .replace(/\r?\n/g, ' ')
+    .replace(/@/g, `@${ZWSP}`)
+    .replace(/:\/\//g, `:/${ZWSP}/`)
+    .replace(/www\./gi, (m) => `${m.slice(0, 3)}${ZWSP}.`)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/[\\`*_[\]()#!~]/g, '\\$&');
+}
+
+/**
+ * Renders a finding message (plain text with `code` spans) as safe Markdown:
+ * code spans stay code, everything else is escaped. A stray backtick in a quoted
+ * value can shift where spans start, but every segment is still made safe.
+ */
+export function inline(message: string): string {
+  return message
+    .split('`')
+    .map((part, i) => (i % 2 === 1 ? (part ? code(part) : '') : escapeText(part)))
+    .join('');
 }
 
 /**

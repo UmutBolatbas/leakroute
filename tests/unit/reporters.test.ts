@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import type { Finding, ScanResult } from '../../src/core/types.js';
 import { upsertPrComment, type Octokit } from '../../src/github/api.js';
-import { cell } from '../../src/reporters/markdown.js';
+import { cell, code, inline } from '../../src/reporters/markdown.js';
 import { PR_COMMENT_MARKER, renderPrComment } from '../../src/reporters/pr-comment.js';
 import { renderSarif } from '../../src/reporters/sarif.js';
 import { renderSummary } from '../../src/reporters/summary.js';
@@ -98,6 +98,42 @@ describe('markdown', () => {
     expect(md).toContain('No auth \\| found.');
   });
 
+  it('fences code spans so backticks inside cannot close them', () => {
+    expect(code('a')).toBe('`a`');
+    expect(code('a``b')).toBe('``` a``b ```');
+  });
+
+  it('renders quoted code from the scanned repository inertly', () => {
+    // A route path a pull request controls, trying to ping a team, embed an image,
+    // post a link and break out of its code span.
+    const title =
+      'Possible unprotected endpoint: GET /@acme/admins <img src=x> https://evil.example [x](y)';
+    const md = inline(title);
+    expect(md).not.toMatch(/@[a-z]/);
+    expect(md).not.toContain('<img');
+    expect(md).not.toContain('https://');
+    expect(md).toContain('\\[x\\]\\(y\\)');
+
+    const breakout = inline('No authentication found for `GET /x` @acme/admins ``: rest.');
+    expect(breakout).not.toMatch(/@[a-z]/);
+  });
+
+  it('escapes injected Markdown in the job summary and PR comment', () => {
+    const evil = finding({
+      title: 'Possible unprotected endpoint: GET /@acme/admins <img src=x>',
+      reason: 'No authentication found for `GET /a|b`: see www.evil.example',
+    });
+    for (const md of [
+      renderSummary(result([evil])),
+      renderPrComment({ findings: [evil], otherCount: 0 }),
+    ]) {
+      expect(md).not.toMatch(/@[a-z]/);
+      expect(md).not.toContain('<img');
+      expect(md).not.toContain('www.evil');
+    }
+    expect(renderSummary(result([evil]))).toContain('`GET /a\\|b`');
+  });
+
   it('says so when there is nothing to report', () => {
     expect(renderSummary(result([]))).toContain('No issues found in 10 files');
   });
@@ -136,12 +172,21 @@ describe('PR comment', () => {
 describe('upsertPrComment', () => {
   const repo = { owner: 'o', repo: 'r' };
 
-  function fakeOctokit(existing: { id: number; body: string; user: { type: string } }[]) {
+  type Comment = { id: number; body: string; user: { type: string; login?: string } };
+
+  /** By default the token is GITHUB_TOKEN, which can't look up its own user. */
+  function fakeOctokit(existing: Comment[], login?: string) {
     const updateComment = vi.fn().mockResolvedValue({});
     const createComment = vi.fn().mockResolvedValue({});
+    const getAuthenticated = login
+      ? vi.fn().mockResolvedValue({ data: { login } })
+      : vi.fn().mockRejectedValue(Object.assign(new Error('forbidden'), { status: 403 }));
     const octokit = {
       paginate: vi.fn().mockResolvedValue(existing),
-      rest: { issues: { listComments: vi.fn(), updateComment, createComment } },
+      rest: {
+        issues: { listComments: vi.fn(), updateComment, createComment },
+        users: { getAuthenticated },
+      },
     } as unknown as Octokit;
     return { octokit, updateComment, createComment };
   }
@@ -172,9 +217,35 @@ describe('upsertPrComment', () => {
     expect(b.createComment).toHaveBeenCalledWith({ ...repo, issue_number: 7, body: 'body' });
   });
 
+  it("never edits a person's comment, even one that starts with the marker", async () => {
+    const { octokit, updateComment, createComment } = fakeOctokit([
+      { id: 3, body: `> ${PR_COMMENT_MARKER} quoted`, user: { type: 'User' } },
+      { id: 4, body: `${PR_COMMENT_MARKER} copied`, user: { type: 'User', login: 'alice' } },
+    ]);
+    expect(await upsertPrComment(octokit, repo, 7, 'body', { createIfMissing: true })).toBe(
+      'created',
+    );
+    expect(updateComment).not.toHaveBeenCalled();
+    expect(createComment).toHaveBeenCalled();
+  });
+
+  it('with a personal access token, updates only the comment that user posted', async () => {
+    const { octokit, updateComment } = fakeOctokit(
+      [
+        { id: 5, body: `${PR_COMMENT_MARKER} theirs`, user: { type: 'User', login: 'alice' } },
+        { id: 6, body: `${PR_COMMENT_MARKER} ours`, user: { type: 'User', login: 'ci-user' } },
+      ],
+      'ci-user',
+    );
+    expect(await upsertPrComment(octokit, repo, 7, 'new', { createIfMissing: true })).toBe(
+      'updated',
+    );
+    expect(updateComment).toHaveBeenCalledWith({ ...repo, comment_id: 6, body: 'new' });
+  });
+
   it('falls back to a new comment when the marked one cannot be edited', async () => {
     const { octokit, updateComment, createComment } = fakeOctokit([
-      { id: 3, body: `quoted ${PR_COMMENT_MARKER}`, user: { type: 'User' } },
+      { id: 3, body: `${PR_COMMENT_MARKER} other bot`, user: { type: 'Bot' } },
     ]);
     updateComment.mockRejectedValue(Object.assign(new Error('forbidden'), { status: 403 }));
     expect(await upsertPrComment(octokit, repo, 7, 'body', { createIfMissing: true })).toBe(

@@ -1,6 +1,6 @@
 import type { Finding } from '../core/types.js';
 import { TOOL_NAME, VERSION } from '../version.js';
-import { cell, code, countsLine, location, SEVERITY_BADGE } from './markdown.js';
+import { cell, code, countsLine, inline, location, SEVERITY_BADGE } from './markdown.js';
 
 /** Hidden marker used to find and update our own comment instead of posting a new one. */
 export const PR_COMMENT_MARKER = '<!-- leakroute:pr-comment -->';
@@ -35,7 +35,7 @@ export function renderPrComment(input: PrCommentInput): string {
     const shown = findings.slice(0, MAX_ROWS);
     for (const f of shown) {
       out.push(
-        `| ${SEVERITY_BADGE[f.severity]} | ${location(f, input.linkBase)} | ${cell(f.title)} |`,
+        `| ${SEVERITY_BADGE[f.severity]} | ${cell(location(f, input.linkBase))} | ${cell(inline(f.title))} |`,
       );
     }
     if (findings.length > shown.length)
@@ -44,11 +44,11 @@ export function renderPrComment(input: PrCommentInput): string {
     out.push('', '<details><summary>Why these were flagged and how to fix them</summary>', '');
     shown.forEach((f, i) => {
       out.push(
-        `#### ${i + 1}. ${cell(f.title)} — ${code(`${f.file}:${f.line}`)}`,
+        `#### ${i + 1}. ${inline(f.title)} — ${code(`${f.file}:${f.line}`)}`,
         '',
-        `**Why:** ${f.reason}`,
+        `**Why:** ${inline(f.reason)}`,
         '',
-        `**Fix:** ${f.remediation}`,
+        `**Fix:** ${inline(f.remediation)}`,
         '',
       );
     });

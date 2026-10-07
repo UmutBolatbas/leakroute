@@ -1,7 +1,7 @@
 import type { ScanResult } from '../core/types.js';
 import { TOOL_NAME, VERSION } from '../version.js';
 import { hiddenNote } from './hidden.js';
-import { cell, code, countsLine, location, SEVERITY_BADGE } from './markdown.js';
+import { cell, code, countsLine, inline, location, SEVERITY_BADGE } from './markdown.js';
 
 export interface SummaryOptions {
   /** e.g. `https://github.com/owner/repo/blob/<sha>/` */
@@ -28,7 +28,7 @@ export function renderSummary(result: ScanResult, options: SummaryOptions = {}):
     for (const f of findings.slice(0, maxRows)) {
       const history = f.commit ? ` _(git history, ${f.commit.slice(0, 7)})_` : '';
       lines.push(
-        `| ${SEVERITY_BADGE[f.severity]} | ${location(f, options.linkBase)}${history} | ${code(f.ruleId)} | **${cell(f.title)}**. ${cell(f.reason)} | ${cell(f.remediation)} |`,
+        `| ${SEVERITY_BADGE[f.severity]} | ${cell(location(f, options.linkBase))}${history} | ${code(f.ruleId)} | **${cell(inline(f.title))}**. ${cell(inline(f.reason))} | ${cell(inline(f.remediation))} |`,
       );
     }
     if (findings.length > maxRows) {
