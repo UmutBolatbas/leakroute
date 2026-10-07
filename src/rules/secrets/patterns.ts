@@ -135,7 +135,10 @@ export const SECRET_PATTERNS: readonly SecretPattern[] = [
       /\b(?<secret>eyJ[A-Za-z0-9_-]{8,}\.eyJ[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{16,})(?![A-Za-z0-9_-])/dg,
     remediation:
       'A hardcoded JWT may grant access until it expires. Remove it, and if it was signed with a production key, rotate that signing key.',
-    check: (secret) => looksLikeJwtHeader(secret.slice(0, secret.indexOf('.'))),
+    check: (secret) => {
+      const [header = '', payload = ''] = secret.split('.');
+      return looksLikeJwtHeader(header) && !isSampleJwtPayload(payload);
+    },
   },
   {
     id: 'secret/database-url',
@@ -157,9 +160,22 @@ export const SECRET_PATTERNS: readonly SecretPattern[] = [
 /** Passwords that appear in tutorials and docker-compose files rather than real deployments. */
 const DEFAULT_PASSWORD = /^(?:pass(?:word|wd)?|pw|secret|postgres|root|admin|mysql|guest|test)$/i;
 
-/** Hosts that point at a developer machine or a docker-compose service, not production. */
+/**
+ * Hosts that point at a developer machine, a docker-compose service or a
+ * documentation placeholder, not production.
+ */
 const LOCAL_HOST =
-  /^(?:localhost|127\.0\.0\.1|0\.0\.0\.0|\[::1\]|host\.docker\.internal|db|database|postgres|postgresql|mysql|mariadb|mongo|mongodb|redis|rabbitmq)$/i;
+  /^(?:localhost|127\.0\.0\.1|0\.0\.0\.0|\[::1\]|host\.docker\.internal|db|database|postgres|postgresql|mysql|mariadb|mongo|mongodb|redis|rabbitmq|host|hostname|server|your[-_]?host|(?:[\w-]+\.)*example\.(?:com|org|net))$/i;
+
+/** The jwt.io sample token ("John Doe", sub 1234567890) appears in countless docs and tests. */
+function isSampleJwtPayload(part: string): boolean {
+  try {
+    const text = Buffer.from(part, 'base64url').toString('utf8');
+    return text.includes('"sub":"1234567890"') || text.includes('John Doe');
+  } catch {
+    return false;
+  }
+}
 
 function looksLikeJwtHeader(part: string): boolean {
   try {

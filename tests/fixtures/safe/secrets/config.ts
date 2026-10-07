@@ -21,3 +21,7 @@ const tokenType = 'Bearer';
 const secretName = 'prod/db-credentials';
 const password = process.env.ADMIN_PASSWORD;
 const jwtLike = 'eyJhbGciOiJub25lIn0'; // a header alone is not a token
+// The jwt.io sample token and documentation-style connection strings.
+const sampleJwt =
+  'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxMjM0NTY3ODkwIiwibmFtZSI6IkpvaG4gRG9lIiwiaWF0IjoxNTE2MjM5MDIyfQ.SflKxwRJSMeKKF2QT4fwpMeJf36POk6yJV_adQssw5c';
+const docsDb = 'mongodb://username:password@host:27017/app';
