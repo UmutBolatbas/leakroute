@@ -5,6 +5,7 @@ import { z } from 'zod';
 import type { FailOn } from './types.js';
 
 export const CONFIG_FILE_NAMES = ['.leakroute.yml', '.leakroute.yaml'] as const;
+export const DEFAULT_BASELINE = '.leakroute-baseline.json';
 
 const fileSchema = z
   .object({
@@ -21,6 +22,8 @@ const fileSchema = z
     'ignore-paths': z.array(z.string().min(1)).default([]),
     'max-file-size': z.number().int().positive().default(1_000_000),
     'git-history': z.boolean().default(false),
+    'disable-rules': z.array(z.string().min(1)).default([]),
+    baseline: z.union([z.string().min(1), z.literal(false)]).default(DEFAULT_BASELINE),
   })
   .strict();
 
@@ -36,6 +39,10 @@ export interface ResolvedConfig {
   /** Files larger than this many bytes are skipped. */
   maxFileSize: number;
   gitHistory: boolean;
+  /** Rule ids or globs (`secret/jwt`, `endpoint/*`) that are not reported. */
+  disableRules: string[];
+  /** Baseline file relative to the scan root, or `null` to not use one. */
+  baseline: string | null;
 }
 
 export class ConfigError extends Error {
@@ -90,5 +97,7 @@ function fromParsed(data: z.output<typeof fileSchema>): ResolvedConfig {
     ignorePaths: data['ignore-paths'],
     maxFileSize: data['max-file-size'],
     gitHistory: data['git-history'],
+    disableRules: data['disable-rules'],
+    baseline: data.baseline === false ? null : data.baseline,
   };
 }
