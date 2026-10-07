@@ -35,7 +35,10 @@ export function readBaseline(file: string): Set<string> | null {
   try {
     raw = JSON.parse(readFileSync(file, 'utf8'));
   } catch (err) {
-    throw new ConfigError(`Could not read baseline ${file}: ${(err as Error).message}`);
+    // JSON.parse errors quote the start of the file. The path can come from a
+    // config file a pull request controls, so never echo another file's contents.
+    const why = err instanceof SyntaxError ? 'not valid JSON' : (err as Error).message;
+    throw new ConfigError(`Could not read baseline ${file}: ${why}`);
   }
   const parsed = baselineSchema.safeParse(raw);
   if (!parsed.success) {

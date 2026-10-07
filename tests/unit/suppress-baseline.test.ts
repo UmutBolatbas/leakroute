@@ -70,6 +70,13 @@ describe('scan filters', () => {
     expect(result.suppressed).toBe(1);
   });
 
+  it('does not echo the contents of a baseline file that is not JSON', async () => {
+    const dir = project({ 'not-json.txt': 'PRIVATE=hunter2-do-not-print\n' });
+    const config = { ...defaultConfig(), baseline: 'not-json.txt' };
+    await expect(scan({ root: dir, config })).rejects.toThrow(/not valid JSON$/);
+    await expect(scan({ root: dir, config })).rejects.not.toThrow(/PRIVATE|hunter2/);
+  });
+
   it('only silences the listed rules', async () => {
     const dir = project({
       'a.ts': `// leakroute-ignore[secret/jwt]: wrong rule\n${stripeLine}\n`,
