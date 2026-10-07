@@ -1,0 +1,61 @@
+name: 'leakroute'
+description: 'Find unprotected API endpoints and leaked secrets in AI-generated code, on every pull request.'
+author: 'UmutBolatbas'
+
+branding:
+  icon: 'shield'
+  color: 'red'
+
+inputs:
+  path:
+    description: 'Directory to scan, relative to the repository root.'
+    required: false
+    default: '.'
+  config:
+    description: 'Path to a config file. Defaults to .leakroute.yml in the scanned directory.'
+    required: false
+    default: ''
+  fail-on:
+    description: 'Fail the job when a finding has at least this severity: high, medium, low or none. Overrides fail-on in the config file (default there: high).'
+    required: false
+    default: ''
+  comment-on-pr:
+    description: 'Post (and keep updating) one PR comment summarizing findings in the files the PR changes. Needs pull-requests: write.'
+    required: false
+    default: 'true'
+  upload-sarif:
+    description: 'Upload results to GitHub Code Scanning (Security tab). Needs security-events: write; private repositories need GitHub Advanced Security.'
+    required: false
+    default: 'true'
+  sarif-file:
+    description: 'Where to write the SARIF report.'
+    required: false
+    default: 'leakroute.sarif'
+  annotations:
+    description: 'Show findings as annotations on the changed lines.'
+    required: false
+    default: 'true'
+  git-history:
+    description: 'Also scan every commit for secrets. Slow on large repositories; requires actions/checkout with fetch-depth: 0.'
+    required: false
+    default: 'false'
+  github-token:
+    description: 'Token used for the PR comment and SARIF upload.'
+    required: false
+    default: ${{ github.token }}
+
+outputs:
+  findings:
+    description: 'Total number of findings.'
+  high:
+    description: 'Number of high-severity findings.'
+  medium:
+    description: 'Number of medium-severity findings.'
+  low:
+    description: 'Number of low-severity findings.'
+  sarif-file:
+    description: 'Absolute path of the SARIF report.'
+
+runs:
+  using: 'node24'
+  main: 'dist/index.js'
