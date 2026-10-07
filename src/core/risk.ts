@@ -27,6 +27,8 @@ export const DEFAULT_PUBLIC_ROUTES: readonly string[] = [
   '**/forgot-password',
   '**/reset-password',
   '**/verify-email',
+  // OAuth2 password-flow token endpoint (FastAPI docs use `/token`).
+  '**/token',
   '**/oauth/**',
   '**/auth/callback/**',
   '/api/auth/**',

@@ -37,23 +37,31 @@ const id = (f: Finding) => `${f.file}:${f.ruleId}@${f.line}`;
 const byTitle = (findings: Finding[], title: string) =>
   findings.find((f) => f.title.endsWith(title));
 
-describe.each(['express', 'express-patterns', 'fastify', 'nextjs', 'nextjs-clerk'])(
-  'vulnerable/%s',
+describe.each([
+  'express',
+  'express-patterns',
+  'fastify',
+  'nextjs',
+  'nextjs-clerk',
+  'fastapi',
+  'flask',
+])('vulnerable/%s', (fixture) => {
+  it('reports exactly the marked routes', async () => {
+    const { findings, markers } = await scanFixture(`vulnerable/${fixture}`);
+    expect(markers.length).toBeGreaterThan(0);
+    expect(findings.map(id).sort()).toEqual(markers.sort());
+  });
+});
+
+describe.each(['express', 'fastify', 'nextjs', 'nextjs-clerk', 'fastapi', 'flask'])(
+  'safe/%s',
   (fixture) => {
-    it('reports exactly the marked routes', async () => {
-      const { findings, markers } = await scanFixture(`vulnerable/${fixture}`);
-      expect(markers.length).toBeGreaterThan(0);
-      expect(findings.map(id).sort()).toEqual(markers.sort());
+    it('reports nothing', async () => {
+      const { findings } = await scanFixture(`safe/${fixture}`);
+      expect(findings.map((f) => `${id(f)} ${f.title}`)).toEqual([]);
     });
   },
 );
-
-describe.each(['express', 'fastify', 'nextjs', 'nextjs-clerk'])('safe/%s', (fixture) => {
-  it('reports nothing', async () => {
-    const { findings } = await scanFixture(`safe/${fixture}`);
-    expect(findings.map((f) => `${id(f)} ${f.title}`)).toEqual([]);
-  });
-});
 
 describe('express details', () => {
   it('resolves mount prefixes across files and assigns risk', async () => {

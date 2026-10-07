@@ -38,7 +38,7 @@ export async function scan(options: ScanOptions): Promise<ScanResult> {
   if (config.scan.endpoints) {
     // Sorted so cross-file resolution is deterministic regardless of read order.
     endpointSources.sort((a, b) => a.path.localeCompare(b.path));
-    const endpoints = analyzeEndpoints(endpointSources, config);
+    const endpoints = await analyzeEndpoints(endpointSources, config);
     findings.push(...endpoints.findings);
     unparsed = endpoints.unparsed;
   }
