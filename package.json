@@ -54,7 +54,7 @@
     "@actions/core": "^3.0.1",
     "@actions/github": "^9.1.1",
     "@typescript-eslint/typescript-estree": "^8.71.1",
-    "commander": "^14.0.3",
+    "commander": "^15.0.0",
     "ignore": "^7.0.12",
     "picocolors": "^1.1.1",
     "picomatch": "^4.0.7",
