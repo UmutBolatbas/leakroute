@@ -1,6 +1,6 @@
 {
   "name": "leakroute",
-  "version": "0.1.0",
+  "version": "1.0.0",
   "description": "Catch unprotected API endpoints and leaked secrets in AI-generated code before they ship.",
   "license": "MIT",
   "author": "UmutBolatbas",

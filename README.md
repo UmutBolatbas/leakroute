@@ -26,8 +26,6 @@ at most the first four characters (`sk-p****`).
   <p align="center"><img src="docs/assets/pr-comment.png" alt="leakroute commenting on a pull request" width="760"></p>
 -->
 
-> 📸 _Screenshot of the PR comment coming soon._
-
 ---
 
 ## Why?
@@ -85,7 +83,7 @@ npx leakroute scan .
 ```
 
 ```text
-leakroute v0.1.0 · scanned 214 files in 812ms
+leakroute v1.0.0 · scanned 214 files in 812ms
 
 routes/admin.ts
   8:1     HIGH    Possible unprotected endpoint: GET /admin/stats  endpoint/express-unprotected-route

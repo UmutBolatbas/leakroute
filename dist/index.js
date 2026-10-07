@@ -284162,7 +284162,7 @@ async function analyzePython(sources, ctx, unparsed) {
 
 ;// CONCATENATED MODULE: ./src/version.ts
 // Kept in sync with package.json by tests/unit/version.test.ts.
-const src_version_VERSION = '0.1.0';
+const src_version_VERSION = '1.0.0';
 const version_TOOL_NAME = 'leakroute';
 
 ;// CONCATENATED MODULE: ./src/core/baseline.ts
