@@ -1,0 +1,5 @@
+# leakroute scans itself in CI (dogfooding).
+fail-on: low
+ignore-paths:
+  # Deliberately vulnerable test inputs.
+  - "tests/fixtures/vulnerable/**"
