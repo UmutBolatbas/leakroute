@@ -21,10 +21,9 @@ mistakes AI coding assistants make all the time:
 It runs locally, never sends your code anywhere, and never prints a secret: findings show
 at most the first four characters (`sk-p****`).
 
-<!--
-  Screenshot placeholder. Replace with a real capture of leakroute's PR comment:
-  <p align="center"><img src="docs/assets/pr-comment.png" alt="leakroute commenting on a pull request" width="760"></p>
--->
+<p align="center">
+  <img src="https://raw.githubusercontent.com/UmutBolatbas/leakroute/main/docs/assets/pr-comment.png" alt="leakroute commenting on a pull request: one high-risk unprotected DELETE endpoint, with why it was flagged and how to fix it" width="760">
+</p>
 
 ---
 

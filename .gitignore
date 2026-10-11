@@ -3,4 +3,5 @@ lib/
 coverage/
 *.log
 .DS_Store
+leakroute.sarif
 # dist/ is committed on purpose: GitHub runs the bundled action from it.
