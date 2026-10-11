@@ -8,7 +8,6 @@
   <a href="https://github.com/UmutBolatbas/leakroute/actions/workflows/ci.yml"><img alt="CI" src="https://github.com/UmutBolatbas/leakroute/actions/workflows/ci.yml/badge.svg"></a>
   <a href="LICENSE"><img alt="License: MIT" src="https://img.shields.io/badge/license-MIT-blue.svg"></a>
   <a href="https://github.com/UmutBolatbas/leakroute/releases"><img alt="Release" src="https://img.shields.io/github/v/release/UmutBolatbas/leakroute?sort=semver"></a>
-  <a href="https://www.npmjs.com/package/leakroute"><img alt="npm" src="https://img.shields.io/npm/v/leakroute"></a>
 </p>
 
 leakroute is a GitHub Action and CLI that reviews every pull request for two
@@ -75,11 +74,17 @@ That's it. On every pull request you get:
 - **Code Scanning alerts** in the repository's _Security_ tab (SARIF 2.1.0);
 - **a failed check** when something reaches the `fail-on` severity.
 
-Or run it locally, no install needed:
+Or run the CLI locally from a clone (Node.js 20 or later):
 
 ```bash
-npx leakroute scan .
+git clone https://github.com/UmutBolatbas/leakroute.git
+cd leakroute
+npm ci && npm run build
+node lib/cli.js scan /path/to/your/project
 ```
+
+In the rest of this README, `leakroute <command>` means `node lib/cli.js <command>` run from
+that clone.
 
 ```text
 leakroute v1.0.0 · scanned 214 files in 812ms
@@ -175,7 +180,7 @@ commit is still in your history, and still valid until you rotate it.
 
 ## Configuration
 
-Run `npx leakroute init` to create a commented `.leakroute.yml`, or write one yourself.
+Run `leakroute init` to create a commented `.leakroute.yml`, or write one yourself.
 Every key is optional:
 
 ```yaml
@@ -237,7 +242,7 @@ On a large codebase you may not want to fix everything before turning leakroute 
 Record what exists today and only new findings will be reported:
 
 ```bash
-npx leakroute baseline .   # writes .leakroute-baseline.json
+leakroute baseline .   # writes .leakroute-baseline.json
 git add .leakroute-baseline.json
 ```
 
