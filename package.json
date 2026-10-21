@@ -62,7 +62,7 @@
     "typescript": "~6.0.3",
     "web-tree-sitter": "^0.27.0",
     "yaml": "^2.9.1",
-    "zod": "^4.6.5"
+    "zod": "^4.6.7"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",
